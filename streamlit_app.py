@@ -22,18 +22,8 @@ api_key = st.text_input("OpenAI APIキーを入力してください", type="pas
 if api_key:
     openai.api_key = api_key
 
-# Layout: 左右に分割
-col1, col2 = st.columns(2)
-
-with col1:
-    st.header("一括分類（Excelアップロード）")
-    uploaded_data = st.file_uploader("残高試算表ファイルをアップロード（A列のみのExcel）", type="xlsx")
-    uploaded_dict = st.file_uploader("分類辞書ファイルをアップロード（5行目がヘッダのExcel）", type="xlsx")
-
-with col2:
-    st.header("1件だけ分類する（サンプルテスト）")
-    sample_text = st.text_input("試したい費目名（例：通訳翻訳費、レンタカーなど）")
-    sample_dict = st.file_uploader("分類辞書ファイルをアップロード", type="xlsx", key="dict-sample")
+# 分類辞書（共通）アップロード
+category_dict = st.file_uploader("分類辞書ファイルをアップロード（5行目がヘッダのExcel）", type="xlsx")
 
 @st.cache_data(show_spinner=False)
 def load_category_table(file):
@@ -100,55 +90,64 @@ def adjust_excel_width(df, output):
     wb.save(tempf.name)
     return tempf.name
 
-# 一括処理ボタン
-if uploaded_data and uploaded_dict and api_key:
-    if st.button("実行する（分類開始）"):
-        df = pd.read_excel(uploaded_data, usecols=[0], header=None)
-        df.columns = ['テキスト']
+# レイアウト: 左右カラム
+col1, col2 = st.columns(2)
 
-        if len(df) > 500:
-            st.error("最大500行まで処理可能です。ファイルを分割してください。")
-        else:
-            cat_df = load_category_table(uploaded_dict)
-            cat_prompt = generate_category_prompt(cat_df)
+# 一括処理（左）
+with col1:
+    st.subheader("一括分類")
+    uploaded_data = st.file_uploader("残高試算表ファイルのアップロード（A列）", type="xlsx")
+    if uploaded_data and category_dict and api_key:
+        if st.button("ファイル全体分析開始"):
+            df = pd.read_excel(uploaded_data, usecols=[0], header=None)
+            df.columns = ['テキスト']
 
-            results = []
-            progress_bar = st.progress(0, text="GPTで分類中...")
+            if len(df) > 500:
+                st.error("最大500行まで処理可能です。ファイルを分割してください。")
+            else:
+                cat_df = load_category_table(category_dict)
+                cat_prompt = generate_category_prompt(cat_df)
 
-            for i, text in enumerate(df['テキスト']):
-                result = classify_text(text, cat_prompt)
-                results.append(result)
-                progress_bar.progress((i + 1) / len(df))
+                results = []
+                progress_bar = st.progress(0, text="GPTで分類中...")
 
-            df[['Lv1#', 'Lv1name', 'Lv2#', 'Lv2name', '理由']] = pd.DataFrame(results, index=df.index)
+                for i, text in enumerate(df['テキスト']):
+                    result = classify_text(text, cat_prompt)
+                    results.append(result)
+                    progress_bar.progress((i + 1) / len(df))
 
-            buffer = BytesIO()
-            df.to_excel(buffer, index=False)
-            buffer.seek(0)
-            output_path = adjust_excel_width(df, buffer)
+                df[['Lv1#', 'Lv1name', 'Lv2#', 'Lv2name', '理由']] = pd.DataFrame(results, index=df.index)
 
-            with open(output_path, "rb") as f:
-                st.download_button(
-                    label="分類結果をダウンロード（Excel）",
-                    data=f.read(),
-                    file_name=f"classified_trial_balance_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                buffer = BytesIO()
+                df.to_excel(buffer, index=False)
+                buffer.seek(0)
+                output_path = adjust_excel_width(df, buffer)
 
-# サンプル分類ボタン
-if st.button("1件だけ分類する") and sample_text and sample_dict and api_key:
-    try:
-        cat_df = load_category_table(sample_dict)
-        prompt = generate_category_prompt(cat_df)
-        lv1, lv1name, lv2, lv2name, reason = classify_text(sample_text, prompt)
-        st.success("分類結果：")
-        st.write(f"Lv1#: {lv1}, Lv1name: {lv1name}")
-        st.write(f"Lv2#: {lv2}, Lv2name: {lv2name}")
-        if reason:
-            st.write("理由:")
-            st.markdown(reason)
-    except Exception as e:
-        st.error(f"エラーが発生しました: {str(e)}")
+                with open(output_path, "rb") as f:
+                    st.download_button(
+                        label="分類結果をダウンロード（Excel）",
+                        data=f.read(),
+                        file_name=f"classified_trial_balance_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
 
-elif not api_key:
+# サンプル分類（右）
+with col2:
+    st.subheader("サンプルテスト（1件のみ分類）")
+    sample_text = st.text_input("試したい費目を入力してください")
+    if st.button("1件だけ分類開始") and sample_text and category_dict and api_key:
+        try:
+            cat_df = load_category_table(category_dict)
+            prompt = generate_category_prompt(cat_df)
+            lv1, lv1name, lv2, lv2name, reason = classify_text(sample_text, prompt)
+            st.success("分類結果：")
+            st.write(f"Lv1#: {lv1}, Lv1name: {lv1name}")
+            st.write(f"Lv2#: {lv2}, Lv2name: {lv2name}")
+            if reason:
+                st.write("理由:")
+                st.markdown(reason)
+        except Exception as e:
+            st.error(f"エラーが発生しました: {str(e)}")
+
+if not api_key:
     st.info("OpenAI APIキーを上に入力してください。")
