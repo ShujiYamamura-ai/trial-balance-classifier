@@ -22,9 +22,18 @@ api_key = st.text_input("OpenAI APIキーを入力してください", type="pas
 if api_key:
     openai.api_key = api_key
 
-# File upload
-uploaded_data = st.file_uploader("残高試算表ファイルをアップロード（A列のみのExcel）", type="xlsx")
-uploaded_dict = st.file_uploader("分類辞書ファイルをアップロード（5行目がヘッダのExcel）", type="xlsx")
+# Layout: 左右に分割
+col1, col2 = st.columns(2)
+
+with col1:
+    st.header("一括分類（Excelアップロード）")
+    uploaded_data = st.file_uploader("残高試算表ファイルをアップロード（A列のみのExcel）", type="xlsx")
+    uploaded_dict = st.file_uploader("分類辞書ファイルをアップロード（5行目がヘッダのExcel）", type="xlsx")
+
+with col2:
+    st.header("1件だけ分類する（サンプルテスト）")
+    sample_text = st.text_input("試したい費目名（例：通訳翻訳費、レンタカーなど）")
+    sample_dict = st.file_uploader("分類辞書ファイルをアップロード", type="xlsx", key="dict-sample")
 
 @st.cache_data(show_spinner=False)
 def load_category_table(file):
@@ -91,7 +100,7 @@ def adjust_excel_width(df, output):
     wb.save(tempf.name)
     return tempf.name
 
-# 実行ボタン（一括処理）
+# 一括処理ボタン
 if uploaded_data and uploaded_dict and api_key:
     if st.button("実行する（分類開始）"):
         df = pd.read_excel(uploaded_data, usecols=[0], header=None)
@@ -126,11 +135,7 @@ if uploaded_data and uploaded_dict and api_key:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-# 単発サンプル分類機能（画面上でテストできる）
-st.markdown("---")
-st.subheader("▶ サンプル分類（1件だけ試す）")
-sample_text = st.text_input("試したい費目名（例：通訳翻訳費、レンタカー、福利厚生費など）")
-sample_dict = st.file_uploader("分類辞書ファイルをアップロード（再利用可）", type="xlsx", key="dict-sample")
+# サンプル分類ボタン
 if st.button("1件だけ分類する") and sample_text and sample_dict and api_key:
     try:
         cat_df = load_category_table(sample_dict)
