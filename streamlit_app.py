@@ -5,8 +5,14 @@ import openai
 from datetime import datetime
 from io import BytesIO
 from openpyxl import load_workbook
+import streamlit as st
 
 st.set_page_config(page_title="Trial Balance Classifier", layout="wide")
+st.set_page_config(page_title="Trial Balance Classifier", layout="wide")
+
+st.title("Trial Balance Classifier")
+st.markdown("✅ 起動チェック: アプリは正常に立ち上がりました")
+
 st.title("Trial Balance Classifier")
 st.markdown("""
 This app classifies line items from an Excel trial balance (A column only) into expense categories using OpenAI.
