@@ -18,13 +18,13 @@ st.markdown("""
 """)
 
 # API key input
-api_key = st.text_input("Enter your OpenAI API Key", type="password")
+api_key = st.text_input("OpenAI APIキーを入力してください", type="password")
 if api_key:
     openai.api_key = api_key
 
 # File upload
-uploaded_data = st.file_uploader("Upload Trial Balance Excel File (.xlsx)", type="xlsx")
-uploaded_dict = st.file_uploader("Upload Category Dictionary Excel File (.xlsx)", type="xlsx")
+uploaded_data = st.file_uploader("残高試算表ファイルをアップロード（A列のみのExcel）", type="xlsx")
+uploaded_dict = st.file_uploader("分類辞書ファイルをアップロード（5行目がヘッダのExcel）", type="xlsx")
 
 @st.cache_data(show_spinner=False)
 def load_category_table(file):
@@ -91,14 +91,14 @@ def adjust_excel_width(df, output):
     wb.save(tempf.name)
     return tempf.name
 
-# 実行ボタン表示
+# 実行ボタン（一括処理）
 if uploaded_data and uploaded_dict and api_key:
     if st.button("実行する（分類開始）"):
         df = pd.read_excel(uploaded_data, usecols=[0], header=None)
         df.columns = ['テキスト']
 
         if len(df) > 500:
-            st.error("Maximum 500 rows allowed. Please split your file.")
+            st.error("最大500行まで処理可能です。ファイルを分割してください。")
         else:
             cat_df = load_category_table(uploaded_dict)
             cat_prompt = generate_category_prompt(cat_df)
@@ -113,7 +113,6 @@ if uploaded_data and uploaded_dict and api_key:
 
             df[['Lv1#', 'Lv1name', 'Lv2#', 'Lv2name', '理由']] = pd.DataFrame(results, index=df.index)
 
-            # 出力
             buffer = BytesIO()
             df.to_excel(buffer, index=False)
             buffer.seek(0)
@@ -121,11 +120,30 @@ if uploaded_data and uploaded_dict and api_key:
 
             with open(output_path, "rb") as f:
                 st.download_button(
-                    label="Download Classified Results (Excel)",
+                    label="分類結果をダウンロード（Excel）",
                     data=f.read(),
                     file_name=f"classified_trial_balance_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
+# 単発サンプル分類機能（画面上でテストできる）
+st.markdown("---")
+st.subheader("▶ サンプル分類（1件だけ試す）")
+sample_text = st.text_input("試したい費目名（例：通訳翻訳費、レンタカー、福利厚生費など）")
+sample_dict = st.file_uploader("分類辞書ファイルをアップロード（再利用可）", type="xlsx", key="dict-sample")
+if st.button("1件だけ分類する") and sample_text and sample_dict and api_key:
+    try:
+        cat_df = load_category_table(sample_dict)
+        prompt = generate_category_prompt(cat_df)
+        lv1, lv1name, lv2, lv2name, reason = classify_text(sample_text, prompt)
+        st.success("分類結果：")
+        st.write(f"Lv1#: {lv1}, Lv1name: {lv1name}")
+        st.write(f"Lv2#: {lv2}, Lv2name: {lv2name}")
+        if reason:
+            st.write("理由:")
+            st.markdown(reason)
+    except Exception as e:
+        st.error(f"エラーが発生しました: {str(e)}")
+
 elif not api_key:
-    st.info("Please enter your OpenAI API Key above.")
+    st.info("OpenAI APIキーを上に入力してください。")
