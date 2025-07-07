@@ -5,22 +5,15 @@ import openai
 from datetime import datetime
 from io import BytesIO
 from openpyxl import load_workbook
-import streamlit as st
 
 st.set_page_config(page_title="Trial Balance Classifier", layout="wide")
-st.set_page_config(page_title="Trial Balance Classifier", layout="wide")
-
-st.title("Trial Balance Classifier")
-st.markdown("✅ 起動チェック: アプリは正常に立ち上がりました")
-
 st.title("Trial Balance Classifier")
 st.markdown("""
-This app classifies line items from an Excel trial balance (A column only) into expense categories using OpenAI.
-
-- Required: Trial balance Excel file (only column A)
-- Required: Category dictionary Excel file (with header at row 5, columns B–F)
-- Output: Classified Excel with columns: Lv1#, Lv1name, Lv2#, Lv2name, Reason
-- Maximum: 500 rows
+このアプリは、Excel形式の残高試算表（A列のみ）に記載された項目を、OpenAIを用いて費目分類するツールです。
+必須：残高試算表ファイル（A列のみを使用）
+必須：分類辞書ファイル（5行目にヘッダー、B〜F列を使用）
+出力：分類結果付きのExcelファイル（Lv1#, Lv1name, Lv2#, Lv2name, 理由の列を含む）
+処理上限：最大500行まで
 """)
 
 # API key input
@@ -97,21 +90,29 @@ def adjust_excel_width(df, output):
     wb.save(tempf.name)
     return tempf.name
 
+# 実行ボタン表示
 if uploaded_data and uploaded_dict and api_key:
-    df = pd.read_excel(uploaded_data, usecols=[0], header=None)
-    df.columns = ['テキスト']
+    if st.button("実行する（分類開始）"):
+        df = pd.read_excel(uploaded_data, usecols=[0], header=None)
+        df.columns = ['テキスト']
 
-    if len(df) > 500:
-        st.error("Maximum 500 rows allowed. Please split your file.")
-    else:
-        cat_df = load_category_table(uploaded_dict)
-        cat_prompt = generate_category_prompt(cat_df)
+        if len(df) > 500:
+            st.error("Maximum 500 rows allowed. Please split your file.")
+        else:
+            cat_df = load_category_table(uploaded_dict)
+            cat_prompt = generate_category_prompt(cat_df)
 
-        with st.spinner("Classifying with GPT..."):
-            results = [classify_text(text, cat_prompt) for text in df['テキスト']]
+            results = []
+            progress_bar = st.progress(0, text="GPTで分類中...")
+
+            for i, text in enumerate(df['テキスト']):
+                result = classify_text(text, cat_prompt)
+                results.append(result)
+                progress_bar.progress((i + 1) / len(df))
+
             df[['Lv1#', 'Lv1name', 'Lv2#', 'Lv2name', '理由']] = pd.DataFrame(results, index=df.index)
 
-            # Output
+            # 出力
             buffer = BytesIO()
             df.to_excel(buffer, index=False)
             buffer.seek(0)
