@@ -10,10 +10,11 @@ st.set_page_config(page_title="Trial Balance Classifier", layout="wide")
 st.title("Trial Balance Classifier")
 st.markdown("""
 このアプリは、Excel形式の残高試算表（A列のみ）に記載された項目を、OpenAIを用いて費目分類するツールです。
-必須：残高試算表ファイル（A列のみを使用）
-必須：分類辞書ファイル（5行目にヘッダー、B〜F列を使用）
-出力：分類結果付きのExcelファイル（Lv1#, Lv1name, Lv2#, Lv2name, 理由の列を含む）
-処理上限：最大500行まで
+
+- 必須：残高試算表ファイル（A列のみを使用）
+- 必須：分類辞書ファイル（5行目にヘッダー、B〜F列を使用）
+- 出力：分類結果付きのExcelファイル（Lv1#, Lv1name, Lv2#, Lv2name, 理由の列を含む）
+- 処理上限：最大500行まで
 """)
 
 # API key input
